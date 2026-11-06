@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>E-Commerce Sales &amp; Customer Analysis</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+  :root{--bg:#f4f6fa;--card:#fff;--text:#1d2433;--muted:#667085;--accent:#4f46e5;--line:#e5e7eb}
+  @media (prefers-color-scheme:dark){:root{--bg:#0f1420;--card:#182033;--text:#e7ebf3;--muted:#98a2b3;--line:#2a3550}}
+  *{box-sizing:border-box} body{margin:0;font-family:system-ui,Segoe UI,Arial,sans-serif;background:var(--bg);color:var(--text)}
+  header{display:flex;flex-wrap:wrap;gap:12px;justify-content:space-between;align-items:center;padding:18px 28px;background:var(--accent);color:#fff}
+  header h1{margin:0;font-size:1.3rem} select{padding:8px 10px;border-radius:8px;border:0;margin-left:8px}
+  main{padding:24px 28px;max-width:1300px;margin:auto}
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:16px;margin-bottom:20px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px}
+  .kpi small{color:var(--muted)} .kpi b{display:block;font-size:1.6rem;margin-top:6px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(380px,1fr));gap:16px}
+  .wide{grid-column:1/-1} h3{margin:0 0 12px;font-size:1rem}
+  canvas{max-height:300px} table{width:100%;border-collapse:collapse} th,td{text-align:left;padding:8px;border-bottom:1px solid var(--line)}
+  th{color:var(--muted);font-weight:600} td:last-child,th:last-child{text-align:right}
+</style>
+</head>
+<body>
+<header>
+  <h1>E-Commerce Sales &amp; Customer Analysis</h1>
+  <div>
+    <label>Region <select id="region"><option>All</option>{% for r in regions %}<option>{{ r }}</option>{% endfor %}</select></label>
+    <label>Category <select id="category"><option>All</option>{% for c in categories %}<option>{{ c }}</option>{% endfor %}</select></label>
+  </div>
+</header>
+<main>
+  <div class="kpis" id="kpis"></div>
+  <div class="grid">
+    <div class="card wide"><h3>Monthly Revenue</h3><canvas id="monthly"></canvas></div>
+    <div class="card"><h3>Revenue by Category</h3><canvas id="category"></canvas></div>
+    <div class="card"><h3>Top Products</h3><canvas id="products"></canvas></div>
+    <div class="card"><h3>Revenue by Region</h3><canvas id="region_c"></canvas></div>
+    <div class="card"><h3>Sales Channel</h3><canvas id="channel"></canvas></div>
+    <div class="card"><h3>Customer Segments</h3><canvas id="segments"></canvas></div>
+    <div class="card"><h3>Top Customers</h3><table><thead><tr><th>Customer</th><th>Orders</th><th>Revenue</th></tr></thead><tbody id="topc"></tbody></table></div>
+  </div>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+const money = n => "$" + Number(n).toLocaleString(undefined, {maximumFractionDigits: 0});
+const palette = ["#4f46e5","#06b6d4","#10b981","#f59e0b","#ef4444","#8b5cf6","#ec4899","#64748b"];
+const charts = {};
+
+function draw(id, type, labels, values, label) {
+  if (charts[id]) charts[id].destroy();
+  const pie = type === "doughnut";
+  charts[id] = new Chart($(id), {
+    type,
+    data: {labels, datasets: [{label, data: values, borderColor: palette[0],
+      backgroundColor: pie || type === "bar" ? palette : "rgba(79,70,229,.15)", fill: type === "line", tension: .3}]},
+    options: {responsive: true, plugins: {legend: {display: pie}}, scales: pie ? {} : {y: {beginAtZero: true}}}
+  });
+}
+
+async function load() {
+  const q = new URLSearchParams({region: $("region").value, category: $("category").value});
+  const res = await fetch("/api/analytics?" + q);
+  if (!res.ok) { $("kpis").innerHTML = "<div class='card'>No data for this filter.</div>"; return; }
+  const d = await res.json(), k = d.kpis;
+  $("kpis").innerHTML = [
+    ["Total Revenue", money(k.revenue)], ["Orders", k.orders.toLocaleString()],
+    ["Customers", k.customers.toLocaleString()], ["Avg Order Value", "$" + k.aov],
+    ["Repeat Customers", k.repeat_rate + "%"]
+  ].map(([a, b]) => `<div class="card kpi"><small>${a}</small><b>${b}</b></div>`).join("");
+
+  draw("monthly", "line", d.monthly.labels, d.monthly.values, "Revenue");
+  draw("category", "bar", Object.keys(d.category), Object.values(d.category), "Revenue");
+  draw("products", "bar", d.products.labels, d.products.values, "Revenue");
+  draw("region_c", "doughnut", Object.keys(d.region), Object.values(d.region));
+  draw("channel", "doughnut", Object.keys(d.channel), Object.values(d.channel));
+  draw("segments", "doughnut", Object.keys(d.segments), Object.values(d.segments));
+  $("topc").innerHTML = d.top_customers.map(c => `<tr><td>${c.name}</td><td>${c.orders}</td><td>${money(c.revenue)}</td></tr>`).join("");
+}
+$("region").onchange = $("category").onchange = load;
+load();
+</script>
+</body>
+</html>
