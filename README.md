@@ -123,6 +123,3 @@ To regenerate the sample data at any time, delete `data/orders.csv` and run `pyt
 - Sales forecasting with machine learning
 - Export reports to PDF or Excel
 - User authentication
-
-**Your Name**
-GitHub: [@your-username](https://github.com/your-username)
